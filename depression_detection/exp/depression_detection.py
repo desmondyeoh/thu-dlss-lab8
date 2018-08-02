@@ -104,7 +104,7 @@ feature_columns = [tf.contrib.layers.real_valued_column("", dimension=dim)]
 classifier = tf.contrib.learn.DNNClassifier(
     model_dir=model_dir,
     feature_columns=feature_columns,
-    hidden_units=[200, 75, 30]
+    hidden_units=[200, 100, 30]
 )
 
 # Define the training inputs
