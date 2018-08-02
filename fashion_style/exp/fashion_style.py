@@ -42,7 +42,6 @@ print('Test set size:', test_features.shape, test_labels.shape)
 ae_features = np.concatenate((train_features, test_features))
 print('AE set size:', ae_features.shape)
 
-
 # Training parameters to be adjusted.
 batch_size = 128
 learning_rate = 0.01
@@ -51,7 +50,6 @@ num_steps = 10001
 # Hidden layer size.
 n_hidden_1 = 128
 n_hidden_2 = 64
-
 
 # Structure of autoencoder.
 graph = tf.Graph()
@@ -66,13 +64,13 @@ with graph.as_default():
 
     # TODO : 1. Create weights and biases of encoder's second layer. (5%)
     # Hint : use n_hidden_2
-    encoder_w2 = ...
-    encoder_b2 = ...
+    encoder_w2 = tf.Variable(tf.truncated_normal([n_hidden_1, n_hidden_2]))
+    encoder_b2 = tf.Variable(tf.zeros([n_hidden_2]))
 
     # TODO : 2. Create weights and biases of encoder's *second* layer. (5%)
     # Hint : pay attention to the symmetry between layers
-    decoder_w2 = ...
-    decoder_b2 = ...
+    decoder_w2 = tf.Variable(tf.truncated_normal([n_hidden_2, n_hidden_1]))
+    decoder_b2 = tf.Variable(tf.zeros([n_hidden_1]))
 
     # Weights and biases of decoder's *first* layer.
     decoder_w1 = tf.Variable(tf.truncated_normal([n_hidden_1, NUM_FEATURES]))
@@ -82,17 +80,17 @@ with graph.as_default():
     encoder_l1 = tf.sigmoid(tf.matmul(tf_train_features, encoder_w1) + encoder_b1)
     # TODO : 3. Write the computation of encoder's second layer and decoder's *second* layer. (5%)
     # Hint : similar to encoder_l1 and decoder_l1
-    encoder_l2 = ...
-    decoder_l2 = ...
+    encoder_l2 = tf.sigmoid(tf.matmul(encoder_l1, encoder_w2) + encoder_b2)
+    decoder_l2 = tf.sigmoid(tf.matmul(encoder_l2, decoder_w2) + decoder_b2)
     decoder_l1 = tf.sigmoid(tf.matmul(decoder_l2, decoder_w1) + decoder_b1)
 
     # TODO : 4. Define the loss function. (5%)
     # Hint : use tf.losses.mean_squared_error()
-    loss = ...
+    loss = tf.losses.mean_squared_error(tf_train_features, decoder_l1)
 
     # TODO : 5. Define a gradient descent optimizer. (5%)
     # Hint : user tf.train.GradientDescentOptimizer(...).minimize(...)
-    optimizer = ...
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
 
 
 # Training process.
@@ -121,13 +119,17 @@ with tf.Session(graph=graph, config=config) as session:
 
     # TODO : 6. Change train_features and test_features from numpy arrays to tensorflow constants. (5%)
     # Hint : use tf.constant(...); pay attention to "dtype" and "shape" parameters
-    train_features = ...
-    test_features = ...
+    train_features = tf.constant(train_features, dtype=tf.float32,shape=train_features.shape)
+    test_features = tf.constant(test_features, dtype=tf.float32,shape=test_features.shape)
 
     # TODO : 7. Calculate the middle layer representation of train/test features. (5%)
     # Hint : use tf.sigmoid(...) and tf.matmul(...); use encoder layers' weights/biases; add ".eval()" at the end of the expressions
-    train_features_new = ...
-    test_features_new = ...
+    
+    encoder_l1_train = tf.sigmoid(tf.matmul(train_features, encoder_w1) + encoder_b1)    
+    encoder_l1_test = tf.sigmoid(tf.matmul(test_features, encoder_w1) + encoder_b1)
+    
+    train_features_new = tf.sigmoid(tf.matmul(encoder_l1_train, encoder_w2) + encoder_b2).eval()
+    test_features_new = tf.sigmoid(tf.matmul(encoder_l1_test, encoder_w2) + encoder_b2).eval()
     print('Middle layer representation size: ', train_features_new.shape, test_features_new.shape)
 
     # Input function for DNN regressor.
@@ -143,19 +145,18 @@ with tf.Session(graph=graph, config=config) as session:
         feature_cols = [tf.contrib.layers.real_valued_column(str(k)) for k in range(n_hidden_2)]
         # TODO : 8. Define DNN regressor. (5%)
         # Hint : use feature_cols; define hidden layers' size
-        regressor = tf.contrib.learn.DNNRegressor(feature_columns=..., hidden_units=...)
+        regressor = tf.contrib.learn.DNNRegressor(feature_columns=feature_cols, hidden_units=[1024,512,256])
 
         # TODO : 9. Train the regressor. (5%)
         # Hint : feed train features and label into input_fn(...)
-        regressor.fit(input_fn=lambda: input_fn(...), steps=100)
+        regressor.fit(input_fn=lambda: input_fn(train_features_new, train_labels[:,index]), steps=100)
 
         # TODO : 10. Evaluate the loss on test set. (5%)
         # Hint : feed test features and label into input_fn(...)
-        current_loss = regressor.evaluate(input_fn=lambda: input_fn(...), steps=1)['loss']
+        current_loss = regressor.evaluate(input_fn=lambda: input_fn(test_features_new, test_labels[:,index]), steps=1)['loss']
 
         print('Index %d MSE loss: %.4f' % (index, current_loss))
         total_loss += current_loss
 
     # Print the sum of 2 dimensions' loss.
     print('Total MSE loss: %.4f' % total_loss)
-
